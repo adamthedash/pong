@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+/// Like regular min_*, but collects all items in the case of a draw
 pub trait MinsBy: Iterator {
     fn mins_by<F>(self, mut f: F) -> Vec<Self::Item>
     where
