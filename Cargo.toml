@@ -1,0 +1,17 @@
+[workspace]
+members = [
+	"client",
+	"server",
+	"protocol"
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+
+[workspace.dependencies]
+tokio = {version = "1.48.0", features=["full"]}
+futures = "0.3.31"
+bytes = "1.11.0"
+log = "0.4.29"
+env_logger = "0.11.8"
