@@ -10,6 +10,7 @@ egui = "0.33.3"
 eframe = "0.33.3"
 log = { workspace = true }
 env_logger = { workspace = true }
+tokio-util = { workspace = true }
 
 [[bin]]
 name = "client"

@@ -1,24 +1,30 @@
-use std::sync::{
-    Arc,
-    mpsc::{self, Receiver, Sender},
-};
+use std::sync::Arc;
 
 use egui::{InputState, Key};
 use protocol::{connection::Writer, frame::ClientFrame};
-use tokio::sync::Mutex;
+use tokio::sync::{
+    Mutex,
+    mpsc::{UnboundedReceiver, UnboundedSender},
+};
+
+#[derive(Debug)]
+pub enum Error {
+    Protocol(protocol::connection::Error),
+    ChannelClosed,
+}
 
 /// Takes user input and sends them off to the server
 pub struct Controller {
     writer: Arc<Mutex<Writer>>,
-    receiver: Receiver<InputState>,
+    /// Receives raw input states from GUI to be processed
+    receiver: UnboundedReceiver<InputState>,
     /// Cache last sent frame so we don't bombard server
     last_frame: ClientFrame,
 }
 
 impl Controller {
-    pub fn new(writer: Arc<Mutex<Writer>>) -> (Self, Sender<InputState>) {
-        // TODO: use tokio channel so we don't block thread
-        let (sender, receiver) = mpsc::channel();
+    pub fn new(writer: Arc<Mutex<Writer>>) -> (Self, UnboundedSender<InputState>) {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         let controller = Self {
             writer,
             receiver,
@@ -28,9 +34,10 @@ impl Controller {
         (controller, sender)
     }
 
-    pub async fn run(mut self) {
-        // TODO: deal with errors in channel / writer
-        while let Ok(inputs) = self.receiver.recv() {
+    pub async fn run(mut self) -> Result<(), Error> {
+        loop {
+            let inputs = self.receiver.recv().await.ok_or(Error::ChannelClosed)?;
+
             // Convert inputs to message to be sent
             let paddle_dir = match (
                 inputs.key_down(Key::ArrowUp),
@@ -48,7 +55,7 @@ impl Controller {
                     .await
                     .write_frame(&paddle_dir)
                     .await
-                    .unwrap();
+                    .map_err(Error::Protocol)?;
 
                 self.last_frame = paddle_dir;
             }

@@ -56,29 +56,60 @@ async fn main() {
     log::info!("Starting game");
 
     // Set up listener thread
-    // TODO: Account for errors in ::run() for non-main threads
-    let (listener, receiver) = Listener::new(game_state.clone(), reader);
-    tokio::spawn(listener.run());
+    let listener = Listener::new(game_state.clone(), reader);
 
     // Set up controller thread
     let (controller, controller_sender) = Controller::new(writer.clone());
-    tokio::spawn(controller.run());
+
+    // Set up render thread
+    let (renderer, cancel_renderer) = Renderer::new(game_state.clone(), FPS, controller_sender);
 
     // Set up manager on new thread so renderer can run in main
     tokio::spawn(async move {
         tokio::select! {
             // Stop signal from server
-            _ = receiver => {}
+            x = listener.run() => {
+                match x {
+                    Ok(()) => {
+                        log::info!("Match ended");
+                    }
+                    Err(e) => {
+                        log::error!("Listener error: {:?}", e);
+                    }
+
+                }
+            }
+            // Error during input handling
+            x = controller.run() => {
+                let e = x.expect_err("Controller cannot finish successfully");
+                log::error!("Controller error: {:?}", e);
+            }
             // Stop signal from client terminal
             _ = tokio::signal::ctrl_c() => {
-                writer.lock().await.write_frame(&ClientFrame::Disconnect).await.unwrap();
+                log::info!("Ctrl-C interrupt");
             }
-            // TODO: Stop signal from client GUI (user presses X)
-            // TODO: Error from any thread
         }
+
+        // Send disconnect message to server no matter what
+        if let Err(e) = writer
+            .lock()
+            .await
+            .write_frame(&ClientFrame::Disconnect)
+            .await
+        {
+            log::error!("Error sending disconnect to server: {:?}", e);
+        }
+
+        cancel_renderer.cancel();
     });
 
-    // Set up render in main thread
-    let renderer = Renderer::new(game_state.clone(), FPS, controller_sender);
-    renderer.run();
+    // Render thread shut down
+    match renderer.run() {
+        Ok(()) => {
+            log::info!("Application shut down");
+        }
+        Err(e) => {
+            log::error!("Renderer error: {:?}", e);
+        }
+    }
 }

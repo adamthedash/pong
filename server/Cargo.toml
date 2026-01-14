@@ -10,6 +10,7 @@ bytes = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
 glam = "0.30.10"
+tokio-util = { workspace = true }
 
 protocol = { path = "../protocol" }
 
