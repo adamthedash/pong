@@ -28,7 +28,7 @@ impl Listener {
         loop {
             match self.reader.read_frame::<ServerFrame>().await {
                 Ok(frame) => {
-                    println!("Got server frame: {:?}", frame);
+                    log::debug!("Got server frame: {:?}", frame);
                     match frame {
                         ServerFrame::GameEnd => {
                             // Game has ended successfully
@@ -46,7 +46,8 @@ impl Listener {
                         }
                     }
                 }
-                Err(_) => {
+                Err(e) => {
+                    log::error!("Error during frame read: {:?}", e);
                     // Treat an error like an end game
                     self.sender.send(Err(())).unwrap();
                     return;

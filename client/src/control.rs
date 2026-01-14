@@ -42,6 +42,7 @@ impl Controller {
             };
 
             if paddle_dir != self.last_frame {
+                log::debug!("Sending command to server: {:?}", paddle_dir);
                 self.writer
                     .lock()
                     .await

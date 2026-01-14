@@ -72,6 +72,7 @@ impl Renderer {
     }
 
     pub fn run(self) {
+        log::debug!("Starting UI");
         let options = NativeOptions::default();
         eframe::run_simple_native("Pong", options, move |ctx, _frame| {
             // Handle user input
@@ -129,6 +130,8 @@ impl Renderer {
             // Make sure we keep rendering frames even when the user is idle
             ctx.request_repaint_after_secs(1. / self.fps);
         })
-        .unwrap();
+        .expect("Failed to create EFrame application");
+
+        log::debug!("Application closed");
     }
 }

@@ -39,16 +39,21 @@ async fn connect(
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
+    log::info!("Connecting to server");
     let (writer, mut reader, _paddle) = connect("127.0.0.1:12345").await.unwrap();
     let writer = Arc::new(TMutex::new(writer));
+    log::info!("Connected to server");
 
     // Wait for game to start
+    log::info!("Waiting for other player");
     let game_state = match reader.read_frame::<ServerFrame>().await.unwrap() {
         ServerFrame::GameStart(state) => state,
         frame => panic!("Unexpected server frame recieved: {:?}", frame),
     };
     let game_state = Arc::new(SMutex::new(GameState::from_initial_frame(game_state)));
-    println!("Starting game");
+    log::info!("Starting game");
 
     // Set up listener thread
     // TODO: Account for errors in ::run() for non-main threads
