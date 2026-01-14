@@ -71,7 +71,6 @@ pub struct Writer {
 
 impl Writer {
     pub async fn write_frame<F: Frame>(&mut self, frame: &F) -> Result<(), Error> {
-        // TODO: Handle connection closed by client
         frame.write(&mut self.connection).await.map_err(Error::IO)
     }
 

@@ -51,6 +51,13 @@ impl ControlThread {
                         Paddle::Right => g.right_paddle_dir = -1,
                     }
                 }
+                ClientFrame::PaddleStop => {
+                    let mut g = self.game.lock().unwrap();
+                    match self.paddle {
+                        Paddle::Left => g.left_paddle_dir = 0,
+                        Paddle::Right => g.right_paddle_dir = 0,
+                    }
+                }
                 ClientFrame::Disconnect => return Ok(()),
 
                 // Invalid command

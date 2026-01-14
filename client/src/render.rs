@@ -1,20 +1,28 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc::Sender};
 
 use eframe::NativeOptions;
-use egui::{Color32, Pos2, Rect, Sense, Stroke, Vec2, emath::RectTransform, pos2, vec2};
+use egui::{
+    Color32, InputState, Pos2, Rect, Sense, Stroke, Vec2, emath::RectTransform, pos2, vec2,
+};
 
 use crate::game_state::GameState;
 
 pub struct Renderer {
     game: Arc<Mutex<GameState>>,
     fps: f32,
+    controller: Sender<InputState>,
 }
 
 impl Renderer {
-    pub fn new(game: Arc<Mutex<GameState>>, fps: f32) -> Self {
-        Self { game, fps }
+    pub fn new(game: Arc<Mutex<GameState>>, fps: f32, controller: Sender<InputState>) -> Self {
+        Self {
+            game,
+            fps,
+            controller,
+        }
     }
 
+    // Lines in game world space
     fn game_lines(&self) -> Vec<Vec<Pos2>> {
         let g = self.game.lock().unwrap();
 
@@ -32,29 +40,28 @@ impl Renderer {
         let left = vec![
             pos2(
                 g.fixed.left_paddle_x as f32,
-                g.dynamic.left_paddle_y as f32 - g.fixed.paddle_height as f32,
+                g.dynamic.left_paddle_y as f32 - g.fixed.paddle_height as f32 / 2.,
             ),
             pos2(
                 g.fixed.left_paddle_x as f32,
-                g.dynamic.left_paddle_y as f32 + g.fixed.paddle_height as f32,
+                g.dynamic.left_paddle_y as f32 + g.fixed.paddle_height as f32 / 2.,
             ),
         ];
         let right = vec![
             pos2(
                 g.fixed.right_paddle_x as f32,
-                g.dynamic.right_paddle_y as f32 - g.fixed.paddle_height as f32,
+                g.dynamic.right_paddle_y as f32 - g.fixed.paddle_height as f32 / 2.,
             ),
             pos2(
                 g.fixed.right_paddle_x as f32,
-                g.dynamic.right_paddle_y as f32 + g.fixed.paddle_height as f32,
+                g.dynamic.right_paddle_y as f32 + g.fixed.paddle_height as f32 / 2.,
             ),
         ];
-
-        // TODO: Ball
 
         vec![walls, left, right]
     }
 
+    // Lines in game world space
     fn ball_pos(&self) -> Pos2 {
         let g = self.game.lock().unwrap();
 
@@ -67,6 +74,16 @@ impl Renderer {
     pub fn run(self) {
         let options = NativeOptions::default();
         eframe::run_simple_native("Pong", options, move |ctx, _frame| {
+            // Handle user input
+            // For now just send entire input state so logic can be handled in the controller.
+            // A bit wasteful but probably not too bad.
+            let inputs = ctx.input(|input_state| input_state.clone());
+            // TODO: Handle unwrap
+            self.controller
+                .send(inputs)
+                .expect("Failed to send input to controller thread");
+
+            // Draw UI
             egui::CentralPanel::default().show(ctx, |ui| {
                 egui::Frame::canvas(ui.style()).show(ui, |ui| {
                     let (resp, painter) =
@@ -78,7 +95,9 @@ impl Renderer {
                     // Transform from game space to screen space
                     let to_screen = RectTransform::from_to(
                         Rect::from_min_size(Pos2::ZERO, arena_size),
-                        resp.rect.shrink(50.),
+                        // Pad in from the edges a bit
+                        // Y points up in game space vs down in draw space
+                        resp.rect.shrink(50.).scale_from_center2(Vec2::X - Vec2::Y),
                     );
 
                     // Gather game state lines to draw
@@ -107,6 +126,7 @@ impl Renderer {
                 });
             });
 
+            // Make sure we keep rendering frames even when the user is idle
             ctx.request_repaint_after_secs(1. / self.fps);
         })
         .unwrap();

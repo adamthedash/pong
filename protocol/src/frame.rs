@@ -51,6 +51,7 @@ pub enum ClientFrame {
     Connect,
     ConnectedAck,
     PaddleUp,
+    PaddleStop,
     PaddleDown,
     Disconnect,
 }
@@ -64,6 +65,7 @@ impl Frame for ClientFrame {
             b'y' => ClientFrame::Connect,
             b'c' => ClientFrame::ConnectedAck,
             b'u' => ClientFrame::PaddleUp,
+            b's' => ClientFrame::PaddleStop,
             b'd' => ClientFrame::PaddleDown,
             b'n' => ClientFrame::Disconnect,
             _ => return Err(Error::Invalid),
@@ -81,6 +83,7 @@ impl Frame for ClientFrame {
             ClientFrame::Connect => buf.write_u8(b'y').await,
             ClientFrame::ConnectedAck => buf.write_u8(b'c').await,
             ClientFrame::PaddleUp => buf.write_u8(b'u').await,
+            ClientFrame::PaddleStop => buf.write_u8(b's').await,
             ClientFrame::PaddleDown => buf.write_u8(b'd').await,
             ClientFrame::Disconnect => buf.write_u8(b'n').await,
         }

@@ -21,15 +21,17 @@ Server can host many games at once. When two players have connected a game is st
 - Render: Simple Egui/Eframe GUI for rendering the game to the user.  
 - Listener: Listens for server messages & updates game state accordingly.  
 - Game state: Local copy of the game state.  
+- Control: Inteprets user input and sends messages to server
 
 ### Protocol
 - Frame: TCP frames for client/server messages.
 - Connection: TCP connection wrapper to read/write frames.
 
 ## TODO
-- User inputs to control paddles
+- ~~User inputs to control paddles~~
 - Client reconnection
 - Game pausing/resuming when a player quits/joins
 - Better UI for client - scores, game state/end notifications, pending players, etc.
 - Protection against malicious client actions
-
+- TUI for server
+- Proper logging for client
