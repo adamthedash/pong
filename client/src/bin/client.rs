@@ -1,25 +1,43 @@
 use client::{control::Controller, game_state::GameState, listener::Listener, render::Renderer};
-use std::sync::{Arc, Mutex as SMutex};
+use quinn::{
+    ClientConfig, Endpoint,
+    rustls::{self, pki_types::CertificateDer},
+};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex as SMutex},
+};
 
 use protocol::{
-    connection::{Connection, Reader, Writer},
+    connection::{Reader, Writer},
     frame::{ClientFrame, Paddle, ServerFrame},
 };
-use tokio::{
-    net::{TcpStream, ToSocketAddrs},
-    sync::Mutex as TMutex,
-};
+use tokio::sync::Mutex as TMutex;
 
 const FPS: f32 = 15.;
 
+fn setup_client() -> Endpoint {
+    let mut cert_store = rustls::RootCertStore::empty();
+    let cert = CertificateDer::from(std::fs::read("cert/cert.der").unwrap());
+    cert_store.add(cert).unwrap();
+
+    let config = ClientConfig::with_root_certificates(Arc::new(cert_store)).unwrap();
+
+    let mut endpoint = Endpoint::client("0.0.0.0:0".parse().unwrap()).unwrap();
+    endpoint.set_default_client_config(config);
+    endpoint
+}
+
 /// Connect the client to server
 async fn connect(
-    address: impl ToSocketAddrs,
+    client: Endpoint,
+    address: SocketAddr,
 ) -> Result<(Writer, Reader, Paddle), protocol::connection::Error> {
-    let conn = TcpStream::connect(address)
-        .await
-        .map_err(protocol::connection::Error::IO)?;
-    let (mut writer, mut reader, _) = Connection::new(conn).into_parts();
+    let connection = client.connect(address, "pingpong").unwrap().await.unwrap();
+
+    let (send, recv) = connection.open_bi().await.unwrap();
+    let mut writer = Writer::new(send);
+    let mut reader = Reader::new(recv);
 
     // Connection handshake
     writer.write_frame(&ClientFrame::Connect).await.unwrap();
@@ -42,7 +60,10 @@ async fn main() {
     env_logger::init();
 
     log::info!("Connecting to server");
-    let (writer, mut reader, _paddle) = connect("127.0.0.1:12345").await.unwrap();
+    let client = setup_client();
+    let (writer, mut reader, _paddle) = connect(client, "127.0.0.1:12345".parse().unwrap())
+        .await
+        .unwrap();
     let writer = Arc::new(TMutex::new(writer));
     log::info!("Connected to server");
 

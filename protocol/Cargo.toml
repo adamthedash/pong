@@ -7,3 +7,4 @@ edition = { workspace = true }
 tokio = { workspace = true }
 futures =  { workspace = true }
 bytes = { workspace = true }
+quinn = { workspace = true }

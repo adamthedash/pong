@@ -1,8 +1,10 @@
+use protocol::connection::Reader;
+use protocol::connection::Writer;
+use quinn::Connection;
 use std::sync::Arc;
 use std::sync::Mutex as SMutex;
 use tokio::sync::Mutex as TMutex;
 
-use protocol::connection::Connection;
 use protocol::frame::ClientFrame;
 use protocol::frame::Paddle;
 use protocol::frame::ServerFrame;
@@ -16,12 +18,19 @@ use crate::{
 pub enum Error {
     InvalidFrame(ClientFrame),
     Protocol(protocol::connection::Error),
+    Quinn(quinn::ConnectionError),
     ServerFull,
 }
 
 impl From<protocol::connection::Error> for Error {
     fn from(value: protocol::connection::Error) -> Self {
         Self::Protocol(value)
+    }
+}
+
+impl From<quinn::ConnectionError> for Error {
+    fn from(value: quinn::ConnectionError) -> Self {
+        Self::Quinn(value)
     }
 }
 
@@ -53,7 +62,9 @@ impl GameServer {
 
     // Attempt to add a player to the game
     pub async fn connect_player(&mut self, connection: Connection) -> Result<(), Error> {
-        let (mut writer, mut reader, _) = connection.into_parts();
+        let (send, recv) = connection.accept_bi().await?;
+        let mut writer = Writer::new(send);
+        let mut reader = Reader::new(recv);
 
         // Perform 3-way handshake
         match reader.read_frame::<ClientFrame>().await? {

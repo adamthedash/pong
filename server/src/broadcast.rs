@@ -3,9 +3,10 @@ use std::{
     time::Duration,
 };
 
+use futures::future::join_all;
 use protocol::{
     connection::Writer,
-    frame::{DynamicGameState, FixedGameState, InitialGameState, ServerFrame},
+    frame::{DynamicGameState, FixedGameState, Frame, InitialGameState, ServerFrame},
 };
 use tokio::{sync::Mutex as TMutex, time::sleep};
 
@@ -56,15 +57,28 @@ impl BroadcastThread {
         InitialGameState { fixed, dynamic }
     }
 
+    /// Broadcast a frame to all clients in parallel
+    async fn broadcast<F: Frame>(&self, frame: &F) -> Vec<Result<(), protocol::connection::Error>> {
+        join_all(
+            self.writers
+                .iter()
+                .map(|writer| async { writer.lock().await.write_frame(frame).await }),
+        )
+        .await
+    }
+
     /// Broadcast a game state update to all players
-    async fn broadcast(&self) {
+    async fn broadcast_state(&self) {
         let state = self.prepare_game_state();
         let frame = ServerFrame::StateUpdate(state);
 
-        // TODO: Broadcast to everyone in parallel
-        for writer in &self.writers {
-            writer.lock().await.write_frame(&frame).await.unwrap();
-        }
+        self.broadcast(&frame)
+            .await
+            .into_iter()
+            .filter_map(Result::err)
+            .for_each(|err| {
+                log::error!("Error broadcasting state: {:?}", err);
+            });
     }
 
     /// Broadcast that the game is beginning and the initial state
@@ -72,19 +86,26 @@ impl BroadcastThread {
         let state = self.prepare_full_state();
         let frame = ServerFrame::GameStart(state);
 
-        // TODO: Broadcast to everyone in parallel
-        for writer in &self.writers {
-            writer.lock().await.write_frame(&frame).await.unwrap();
-        }
+        self.broadcast(&frame)
+            .await
+            .into_iter()
+            .filter_map(Result::err)
+            .for_each(|err| {
+                log::error!("Error broadcasting game start: {:?}", err);
+            });
     }
 
+    /// Broadcast that the game has ended
     pub async fn signal_end(&self) {
         let frame = ServerFrame::GameEnd;
 
-        // TODO: Broadcast to everyone in parallel
-        for writer in &self.writers {
-            writer.lock().await.write_frame(&frame).await.unwrap();
-        }
+        self.broadcast(&frame)
+            .await
+            .into_iter()
+            .filter_map(Result::err)
+            .for_each(|err| {
+                log::error!("Error broadcasting game end: {:?}", err);
+            });
     }
 
     /// Start broadcasting the game state
@@ -93,7 +114,7 @@ impl BroadcastThread {
         log::debug!("signalled begin");
 
         loop {
-            self.broadcast().await;
+            self.broadcast_state().await;
             log::debug!("Broadcasted state");
             sleep(Duration::from_secs_f32(1. / self.broadcast_rate)).await;
         }

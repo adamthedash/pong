@@ -1,14 +1,9 @@
-use std::{io::Cursor, net::SocketAddr};
+use std::io::Cursor;
 
 use crate::frame::{self, Frame};
 use bytes::{Buf, BytesMut};
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{
-        TcpStream,
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-    },
-};
+use quinn::{RecvStream, SendStream};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
 pub enum Error {
@@ -19,11 +14,18 @@ pub enum Error {
 }
 
 pub struct Reader {
-    connection: OwnedReadHalf,
+    connection: RecvStream,
     buffer: BytesMut,
 }
 
 impl Reader {
+    pub fn new(stream: RecvStream) -> Self {
+        Self {
+            connection: stream,
+            buffer: BytesMut::with_capacity(1024),
+        }
+    }
+
     /// Try to read a frame from this connection. Blocks until a frame or error is recieved
     pub async fn read_frame<F: Frame>(&mut self) -> Result<F, Error> {
         loop {
@@ -66,72 +68,19 @@ impl Reader {
 }
 
 pub struct Writer {
-    connection: OwnedWriteHalf,
+    connection: SendStream,
 }
 
 impl Writer {
+    pub fn new(stream: SendStream) -> Self {
+        Self { connection: stream }
+    }
+
     pub async fn write_frame<F: Frame>(&mut self, frame: &F) -> Result<(), Error> {
         frame.write(&mut self.connection).await.map_err(Error::IO)
     }
 
     pub async fn shutdown(mut self) -> Result<(), std::io::Error> {
         self.connection.shutdown().await
-    }
-}
-
-/// Layer to handle communication over the wire between server & client
-pub struct Connection {
-    reader: Reader,
-    writer: Writer,
-    address: SocketAddr,
-}
-
-impl Connection {
-    pub fn new(connection: TcpStream) -> Self {
-        let address = connection
-            .peer_addr()
-            .expect("Failed to get peer connection address");
-        let (reader, writer) = connection.into_split();
-
-        Self {
-            address,
-            reader: Reader {
-                connection: reader,
-                buffer: BytesMut::with_capacity(1024),
-            },
-            writer: Writer { connection: writer },
-        }
-    }
-
-    pub async fn read_frame<F: Frame>(&mut self) -> Result<F, Error> {
-        self.reader.read_frame().await
-    }
-
-    pub async fn write_frame<F: Frame>(&mut self, frame: &F) -> Result<(), Error> {
-        self.writer.write_frame(frame).await
-    }
-
-    pub async fn shutdown(self) -> Result<(), std::io::Error> {
-        self.writer.shutdown().await
-    }
-
-    pub fn address(&self) -> SocketAddr {
-        self.address
-    }
-
-    pub fn into_parts(self) -> (Writer, Reader, SocketAddr) {
-        (self.writer, self.reader, self.address)
-    }
-}
-
-impl PartialEq for Connection {
-    fn eq(&self, other: &Self) -> bool {
-        self.address == other.address
-    }
-}
-
-impl PartialEq<SocketAddr> for Connection {
-    fn eq(&self, other: &SocketAddr) -> bool {
-        self.address == *other
     }
 }

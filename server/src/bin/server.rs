@@ -1,27 +1,38 @@
-use protocol::connection::Connection;
+use std::net::SocketAddr;
 
+use quinn::{
+    Endpoint, ServerConfig,
+    rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer},
+};
 use server::orchestration::GameServer;
-use tokio::net::TcpListener;
 
 const BROADCAST_RATE: f32 = 30.;
 const TICK_RATE: f32 = 30.;
+
+fn setup_server(address: SocketAddr) -> Endpoint {
+    // Load pre-generated cert
+    let cert = CertificateDer::from(std::fs::read("cert/cert.der").unwrap());
+    let private_key = PrivatePkcs8KeyDer::from(std::fs::read("cert/key.der").unwrap());
+
+    // Create server endpoint
+    let config = ServerConfig::with_single_cert(vec![cert.clone()], private_key.into()).unwrap();
+
+    Endpoint::server(config, address).unwrap()
+}
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
 
-    let listener = TcpListener::bind("127.0.0.1:12345").await.unwrap();
+    let endpoint = setup_server("127.0.0.1:12345".parse().unwrap());
 
     let mut game_server = GameServer::new(BROADCAST_RATE, TICK_RATE);
 
     loop {
-        let (socket, source) = listener.accept().await.unwrap();
-        log::info!("Got connection: {:?} from {:?}", socket, source);
+        let conn = endpoint.accept().await.unwrap().await.unwrap();
+        log::info!("Got connection from {:?}", conn.remote_address());
 
-        game_server
-            .connect_player(Connection::new(socket))
-            .await
-            .unwrap();
+        game_server.connect_player(conn).await.unwrap();
 
         if game_server.ready() {
             log::info!("Game ready, spawing new thread");

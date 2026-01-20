@@ -5,14 +5,23 @@ edition = { workspace = true }
 
 [dependencies]
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 futures =  { workspace = true }
 bytes = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
 glam = "0.30.10"
-tokio-util = { workspace = true }
+
+quinn = { workspace = true }
+rcgen = "0.14.6"
 
 protocol = { path = "../protocol" }
 
 [[bin]]
 name = "server"
+
+[[bin]]
+name = "test_quinn"
+
+[[bin]]
+name = "create_cert"

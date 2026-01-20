@@ -11,6 +11,7 @@ eframe = "0.33.3"
 log = { workspace = true }
 env_logger = { workspace = true }
 tokio-util = { workspace = true }
+quinn = { workspace = true }
 
 [[bin]]
 name = "client"
