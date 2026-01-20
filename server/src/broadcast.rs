@@ -41,7 +41,7 @@ impl BroadcastThread {
         }
     }
 
-    fn prepare_initial_state(&self) -> InitialGameState {
+    fn prepare_full_state(&self) -> InitialGameState {
         let dynamic = self.prepare_game_state();
 
         let g = self.game.lock().unwrap();
@@ -69,7 +69,7 @@ impl BroadcastThread {
 
     /// Broadcast that the game is beginning and the initial state
     pub async fn signal_begin(&self) {
-        let state = self.prepare_initial_state();
+        let state = self.prepare_full_state();
         let frame = ServerFrame::GameStart(state);
 
         // TODO: Broadcast to everyone in parallel
@@ -88,7 +88,7 @@ impl BroadcastThread {
     }
 
     /// Start broadcasting the game state
-    pub async fn run(&mut self) {
+    pub async fn run(&self) {
         self.signal_begin().await;
         log::debug!("signalled begin");
 

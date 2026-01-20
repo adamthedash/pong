@@ -180,7 +180,9 @@ pub struct InitialGameState {
 pub enum ServerFrame {
     AcceptConnection(Paddle),
     RejectConnection(String),
+    /// Used for both a fresh start and resume
     GameStart(InitialGameState),
+    GamePause,
     StateUpdate(DynamicGameState),
     GameEnd,
 }
@@ -217,6 +219,7 @@ impl Frame for ServerFrame {
 
             b'U' => ServerFrame::StateUpdate(DynamicGameState::parse(buf)?),
 
+            b'P' => ServerFrame::GamePause,
             b'X' => ServerFrame::GameEnd,
 
             _ => return Err(Error::Invalid),
@@ -254,6 +257,9 @@ impl Frame for ServerFrame {
             }
             ServerFrame::GameEnd => {
                 buf.write_u8(b'X').await?;
+            }
+            Self::GamePause => {
+                buf.write_u8(b'P').await?;
             }
         }
 

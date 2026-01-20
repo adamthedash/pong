@@ -34,5 +34,5 @@ Server can host many games at once. When two players have connected a game is st
 - Better UI for client - scores, game state/end notifications, pending players, etc.
 - Protection against malicious client actions
 - TUI for server
-- Proper logging for client
+- ~~Proper logging for client~~
 - Client-side prediction
